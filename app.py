@@ -1,10 +1,8 @@
-from flask import Flask, render_template, jsonify
 import requests
 import time
 import collections
 import math
-
-app = Flask(__name__)
+import os # স্ক্রিন ক্লিন করার জন্য
 
 API_URL = "https://draw.ar-lottery01.com/WinGo/WinGo_30S/GetHistoryIssuePage.json"
 HEADERS = {
@@ -15,15 +13,12 @@ HEADERS = {
 session = requests.Session()
 session.headers.update(HEADERS)
 
-# ⚙️ FINAL CONFIG (তোমার অরিজিনাল কোড)
+# ⚙️ FINAL CONFIG
 TARGET_WINS = 25
 STOP_LOSS_LIMIT = 12
 
-last_prediction = None
-win_count = 0
-loss_count = 0
-consecutive_loss = 0
-last_issue_global = None
+last_prediction, win_count, loss_count, consecutive_loss = None, 0, 0, 0
+start_time = time.time() # সেশন কতক্ষণ ধরে চলছে মাপার জন্য
 
 def get_size(num): return "BIG" if num >= 5 else "SMALL"
 
@@ -74,56 +69,53 @@ def check_win(pred, num, col, size):
     consecutive_loss += 1
     return "❌ LOSS"
 
-@app.route('/')
-def home():
-    return render_template('index.html')
-
-@app.route('/api/status')
-def api_status():
-    global last_prediction, win_count, loss_count, consecutive_loss, last_issue_global
+def run_bot():
+    global last_prediction, win_count, loss_count, consecutive_loss
     
-    try:
-        data = session.get(f"{API_URL}?ts={int(time.time()*1000)}", timeout=4).json()
-        history = data.get('data', {}).get('list', [])
-        if not history:
-            return jsonify({"status": "waiting"})
+    print("\n" + "⚡"*10 + " BX-PRO V100 SUPREME BUILD " + "⚡"*10)
+    print("STATUS: SYSTEM DEPLOYED | ENGINE: NEURAL STABLE")
+    print("=" * 60)
 
-        current = history[0]
-        issue = current['issueNumber']
-        num = int(current['number'])
-        col = current['color'].upper()
-        size = get_size(num)
+    last_issue = None
+    while True:
+        try:
+            if win_count >= TARGET_WINS: print("\n🏆 TARGET COMPLETED!"); break
+            if consecutive_loss >= STOP_LOSS_LIMIT: print("\n🛑 STOP LOSS TRIGGERED!"); break
 
-        result_msg = ""
-        is_new = False
+            data = session.get(f"{API_URL}?ts={int(time.time()*1000)}", timeout=4).json()
+            history = data.get('data', {}).get('list', [])
+            if not history: time.sleep(2); continue
 
-        if issue != last_issue_global:
-            is_new = True
-            if last_prediction:
-                result_msg = check_win(last_prediction, num, col, size)
-            else:
-                result_msg = "INITIALIZING"
-            
-            last_issue_global = issue
-            size_p, color_p, hot, conf, vol, stab, strength, mom, dev = get_prediction(history)
-            last_prediction = (size_p, color_p, hot, conf, vol, stab, strength, mom, dev)
+            current = history[0]
+            issue, num, col, size = current['issueNumber'], int(current['number']), current['color'].upper(), get_size(int(current['number']))
 
-        if not last_prediction:
-            return jsonify({"status": "initializing"})
+            if issue != last_issue:
+                result = check_win(last_prediction, num, col, size) if last_prediction else "INITIALIZING"
+                last_issue = issue
+                acc = (win_count / (win_count + loss_count) * 100) if (win_count + loss_count) else 0
+                uptime = time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
 
-        return jsonify({
-            "issue": issue,
-            "next_size": last_prediction[0],
-            "next_color": last_prediction[1],
-            "confidence": round(last_prediction[3], 1),
-            "result_msg": result_msg,
-            "win_count": win_count,
-            "loss_count": loss_count,
-            "is_new": is_new
-        })
+                print(f"\n📌 ISSUE: {issue} | STATUS: {result}")
+                print(f"📊 RESULT: {num} ({col} | {size})")
+                print(f"📈 SESSION: W:{win_count} L:{loss_count} | ACC: {acc:.1f}% | UPTIME: {uptime}")
+                
+                size_p, color_p, hot, conf, vol, stab, strength, mom, dev = get_prediction(history)
+                last_prediction = (size_p, color_p, hot, conf, vol, stab, strength, mom, dev)
 
-    except Exception as e:
-        return jsonify({"error": str(e)})
+                print(f"🔮 NEXT: {size_p} | {color_p} | HOT: {hot}")
+                print(f"🎯 CONF: {conf:.1f}% | VOL: {vol:.2f} | STAB: {stab:.1f}")
+                
+                # 🛠️ স্মার্ট ড্যাশবোর্ড আপডেট
+                if conf > 92: print("💎 [ULTRA SIGNAL]: CONFIDENCE LEVEL MAXIMUM")
+                elif vol > 4.5: print("⚠️ [MARKET RISK]: UNSTABLE VOLATILITY")
+                
+                if consecutive_loss > 0:
+                    print(f"🔄 STREAK: {consecutive_loss} LOSSES (Recov: {2**consecutive_loss}X)")
+                
+                print("-" * 60)
+            time.sleep(1)
+        except Exception: time.sleep(2)
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
+if __name__ == "__main__":
+    run_bot()
+    

@@ -219,7 +219,7 @@ GAME_OVERLAY_HTML = """
     </style>
 </head>
 <body>
-    <iframe src="https://hgzy.vip/#/home"></iframe>
+    <iframe src="https://hgzy.vip/#/register?invitationCode=171661163318"></iframe>
 
     <div id="hackWidget">
         <div class="widget-header">

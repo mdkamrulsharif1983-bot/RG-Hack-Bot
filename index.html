@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIP PREDICTION BOT | TRADER XAIKO</title>
+    <style>
+        /* বেসিক স্টাইল */
+        body, html { margin: 0; padding: 0; height: 100%; background-color: #0b0c10; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: white; overflow: hidden; }
+        
+        /* পিন স্ক্রিন ডিজাইন */
+        #pin-screen { position: absolute; width: 100%; height: 100%; background: radial-gradient(circle, #0b0c10, #1f2833); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
+        
+        /* এনিমেটেড টেলিগ্রাম লিংক */
+        .tg-alert { margin-bottom: 40px; font-size: 24px; text-decoration: none; color: #00ffcc; font-weight: bold; text-shadow: 0 0 10px #00ffcc; animation: moveUpDown 1.5s infinite ease-in-out; text-align: center; display: block; border: 2px solid #00ffcc; padding: 10px 20px; border-radius: 50px; }
+        
+        @keyframes moveUpDown { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-20px) scale(1.1); color: #ff0055; border-color: #ff0055; text-shadow: 0 0 20px #ff0055; } }
+
+        .input-box { padding: 15px; font-size: 18px; text-align: center; border: 2px solid #45a29e; border-radius: 12px; background: rgba(0,0,0,0.5); color: #00ffcc; box-shadow: 0 0 15px rgba(0, 255, 204, 0.2); outline: none; width: 250px; transition: 0.3s; }
+        .input-box:focus { border-color: #00ffcc; box-shadow: 0 0 25px rgba(0, 255, 204, 0.5); }
+        
+        .btn { margin-top: 25px; padding: 12px 40px; font-size: 18px; background: #00ffcc; color: #0b0c10; border: none; border-radius: 50px; font-weight: bold; cursor: pointer; box-shadow: 0 0 20px #00ffcc; transition: 0.4s; text-transform: uppercase; }
+        .btn:hover { background: #fff; box-shadow: 0 0 40px #fff; transform: scale(1.05); }
+
+        /* মেইন অ্যাপ এলাকা */
+        #main-app { display: none; width: 100%; height: 100%; position: relative; }
+        iframe { width: 100%; height: 100%; border: none; }
+        
+        /* প্রেডিকশন ওভারলে ইঞ্জিন (Glassmorphism) */
+        .overlay-bot { position: absolute; top: 20px; right: 20px; background: rgba(11, 12, 16, 0.8); border: 2px solid #00ffcc; border-radius: 20px; padding: 20px; width: 240px; box-shadow: 0 0 30px rgba(0, 255, 204, 0.4); backdrop-filter: blur(15px); pointer-events: none; z-index: 100; }
+        .overlay-header { font-size: 16px; color: #00ffcc; border-bottom: 1px solid #45a29e; padding-bottom: 10px; margin-bottom: 15px; text-align: center; font-weight: bold; letter-spacing: 1px; }
+        .flex-row { display: flex; justify-content: space-around; margin-bottom: 15px; }
+        .pred-val { font-size: 24px; font-weight: bold; }
+        .green { color: #00ffcc; text-shadow: 0 0 15px #00ffcc; }
+        .red { color: #ff4d4d; text-shadow: 0 0 15px #ff4d4d; }
+
+        /* উইন / জ্যাকপট পপআপ */
+        #win-popup { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0); background: rgba(0,0,0,0.95); border: 4px solid #00ffcc; padding: 50px 80px; border-radius: 30px; text-align: center; box-shadow: 0 0 100px #00ffcc; z-index: 2000; transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .win-text { font-size: 80px; font-weight: 900; color: #00ffcc; text-shadow: 0 0 40px #00ffcc; margin: 0; font-style: italic; }
+        #win-popup.show { transform: translate(-50%, -50%) scale(1); }
+    </style>
+</head>
+<body>
+
+    <div id="pin-screen">
+        <a href="https://t.me/tradingbyrgofficial" target="_blank" class="tg-alert">JOIN TELEGRAM FOR SIGNALS</a>
+        <input type="password" id="pin-input" class="input-box" placeholder="ENTER ACCESS PIN">
+        <button class="btn" onclick="verifyPin()">ACTIVATE ENGINE</button>
+        <p id="error-msg" style="color: #ff4d4d; margin-top: 15px; display: none;">Invalid or Used PIN!</p>
+    </div>
+
+    <div id="main-app">
+        <iframe src="https://hgzy.vip/#/register?invitationCode=171661163318"></iframe>
+
+        <div class="overlay-bot">
+            <div class="overlay-header">🛡️ VIP SECURE ENGINE</div>
+            <div style="font-size: 13px; color: #c5c6c7; text-align: center; margin-bottom: 12px;">ISSUE: <span id="issue-id" style="color: #fff;">------</span></div>
+            <div class="flex-row">
+                <div style="text-align: center;">
+                    <div style="font-size: 11px; color: #45a29e;">SIZE</div>
+                    <div id="pred-size" class="pred-val green">---</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 11px; color: #45a29e;">COLOR</div>
+                    <div id="pred-color" class="pred-val red">---</div>
+                </div>
+            </div>
+            <div style="text-align: center; font-size: 14px; margin-top: 10px;">ACCURACY: <span id="pred-conf" style="color: #00ffcc;">0%</span></div>
+            <div style="text-align: center; font-size: 12px; margin-top: 8px; color:#ffb400;">WIN: <span id="w-count">0</span> | LOSS: <span id="l-count">0</span></div>
+        </div>
+
+        <div id="win-popup">
+            <h1 class="win-text">WIN</h1>
+        </div>
+    </div>
+
+    <script>
+        let botInterval;
+        let expireTimer;
+
+        function verifyPin() {
+            const pinInput = document.getElementById('pin-input');
+            const pin = pinInput.value.trim();
+            const errorMsg = document.getElementById('error-msg');
+            
+            // ওয়ান-টাইম ইউজ চেক (লোকাল স্টোরেজ থেকে)
+            if (localStorage.getItem('used_pin_' + pin)) {
+                errorMsg.innerText = "THIS PIN IS ALREADY EXPIRED!";
+                errorMsg.style.display = 'block';
+                return;
+            }
+
+            if(pin === 'passwordrgbot') {
+                grantAccess(0, pin, false); // আনলিমিটেড
+            } 
+            else if (pin === '10mmm') {
+                grantAccess(10 * 60 * 1000, pin, true); // ১০ মিনিট
+            } 
+            else if (pin === '2H0011') {
+                grantAccess(2 * 60 * 60 * 1000, pin, true); // ২ ঘণ্টা
+            } 
+            else {
+                errorMsg.innerText = "INVALID PIN! TRY AGAIN.";
+                errorMsg.style.display = 'block';
+            }
+        }
+
+        function grantAccess(durationMs, pin, isOneTime) {
+            // যদি লিমিটেড পিন হয় তবে ব্রাউজারে মার্ক করে রাখা
+            if (isOneTime) {
+                localStorage.setItem('used_pin_' + pin, 'true');
+            }
+
+            document.getElementById('pin-screen').style.display = 'none';
+            document.getElementById('main-app').style.display = 'block';
+            startBotEngine();
+
+            if (durationMs > 0) {
+                clearTimeout(expireTimer);
+                expireTimer = setTimeout(() => {
+                    alert('YOUR SESSION HAS EXPIRED!');
+                    location.reload(); 
+                }, durationMs);
+            }
+        }
+
+        function showResultPopup(text, isWin) {
+            const popup = document.getElementById('win-popup');
+            const textEl = popup.querySelector('.win-text');
+            textEl.innerText = text;
+            
+            if(isWin) {
+                popup.style.borderColor = '#00ffcc';
+                popup.style.boxShadow = '0 0 100px #00ffcc';
+                textEl.style.color = '#00ffcc';
+            } else {
+                popup.style.borderColor = '#ff0055';
+                popup.style.boxShadow = '0 0 100px #ff0055';
+                textEl.style.color = '#ff0055';
+            }
+
+            popup.classList.add('show');
+            setTimeout(() => { popup.classList.remove('show'); }, 4000); 
+        }
+
+        function startBotEngine() {
+            clearInterval(botInterval);
+            botInterval = setInterval(async () => {
+                try {
+                    const res = await fetch('/api/status');
+                    const data = await res.json();
+                    
+                    if(data.issue) {
+                        document.getElementById('issue-id').innerText = data.issue;
+                        document.getElementById('pred-size').innerText = data.next_size;
+                        document.getElementById('pred-size').className = (data.next_size === 'BIG') ? 'pred-val red' : 'pred-val green';
+                        
+                        document.getElementById('pred-color').innerText = data.next_color;
+                        document.getElementById('pred-color').className = (data.next_color === 'RED') ? 'pred-val red' : 'pred-val green';
+                        
+                        document.getElementById('pred-conf').innerText = data.confidence + '%';
+                        document.getElementById('w-count').innerText = data.win_count;
+                        document.getElementById('l-count').innerText = data.loss_count;
+
+                        if(data.is_new && data.result_msg) {
+                            if(data.result_msg.includes('WIN') || data.result_msg.includes('JACKPOT')) {
+                                showResultPopup(data.result_msg, true);
+                            } else if (data.result_msg.includes('LOSS')) {
+                                showResultPopup('LOSS', false);
+                            }
+                        }
+                    }
+                } catch (err) { console.error('Connection to engine lost...'); }
+            }, 2000);
+        }
+    </script>
+</body>
+</html>

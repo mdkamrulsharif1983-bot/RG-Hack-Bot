@@ -14,8 +14,8 @@ session = requests.Session()
 session.headers.update(HEADERS)
 
 # ⚙️ FINAL CONFIG
-TARGET_WINS = 25
-STOP_LOSS_LIMIT = 12
+TARGET_WINS = 2500000000000000000000000
+STOP_LOSS_LIMIT = 12000000000000000
 
 last_prediction, win_count, loss_count, consecutive_loss = None, 0, 0, 0
 start_time = time.time() # সেশন কতক্ষণ ধরে চলছে মাপার জন্য
